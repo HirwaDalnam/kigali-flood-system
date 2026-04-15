@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kigali Flood Prediction — Live Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg:       #0a0e17;
+    --bg2:      #111827;
+    --bg3:      #1c2537;
+    --border:   rgba(255,255,255,0.07);
+    --border2:  rgba(255,255,255,0.14);
+    --text:     #e2e8f0;
+    --muted:    #64748b;
+    --accent:   #38bdf8;
+    --green:    #22c55e;
+    --amber:    #f59e0b;
+    --red:      #ef4444;
+    --crimson:  #7f1d1d;
+    --mono:     'IBM Plex Mono', monospace;
+    --sans:     'IBM Plex Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  /* Header */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg2);
+  }
+
+  .header-left h1 {
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    font-family: var(--mono);
+  }
+
+  .header-left p {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+    font-family: var(--mono);
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  #refresh-btn {
+    background: none;
+    border: 1px solid var(--border2);
+    color: var(--muted);
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: var(--mono);
+    transition: all .15s;
+  }
+
+  #refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  #last-updated {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* Main layout */
+  main {
+    padding: 24px 28px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  /* Loading state */
+  #loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 300px;
+    gap: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+
+  .spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Current conditions bar */
+  #conditions-bar {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .cond-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+
+  .cond-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    font-family: var(--mono);
+    margin-bottom: 6px;
+  }
+
+  .cond-value {
+    font-size: 22px;
+    font-weight: 300;
+    font-family: var(--mono);
+    color: var(--text);
+  }
+
+  .cond-unit {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: 3px;
+  }
+
+  /* Section headers */
+  .section-title {
+    font-size: 11px;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Two-column grid */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+
+  /* Chart cards */
+  .chart-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+  }
+
+  .chart-card h3 {
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 14px;
+  }
+
+  .chart-wrap {
+    position: relative;
+    height: 180px;
+  }
+
+  /* District risk grid */
+  #district-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+
+  .district-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color .2s;
+  }
+
+  .district-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 12px 12px 0 0;
+    background: var(--risk-color, var(--green));
+  }
+
+  .district-name {
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+
+  .district-cn {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .risk-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-family: var(--mono);
+    font-weight: 500;
+    padding: 3px 9px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--risk-color, var(--green));
+    color: var(--risk-color, var(--green));
+  }
+
+  .risk-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--risk-color, var(--green));
+  }
+
+  .district-stats {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--muted);
+    line-height: 1.8;
+  }
+
+  .district-stats span {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  /* Capacity bar */
+  .cap-bar-bg {
+    height: 4px;
+    background: var(--bg3);
+    border-radius: 2px;
+    margin-top: 10px;
+    overflow: hidden;
+  }
+
+  .cap-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--risk-color, var(--green));
+    transition: width .5s ease;
+  }
+
+  .cap-label {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--muted);
+    margin-top: 4px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* 48-hr forecast timeline */
+  #forecast-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    margin-bottom: 24px;
+  }
+
+  #forecast-card h3 {
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 14px;
+  }
+
+  .forecast-chart-wrap {
+    position: relative;
+    height: 200px;
+  }
+
+  /* Action log */
+  #action-log {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+  }
+
+  #action-log h3 {
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 12px;
+  }
+
+  .log-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+
+  .log-row:last-child { border-bottom: none; }
+
+  .log-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .log-district {
+    font-family: var(--mono);
+    font-weight: 500;
+    min-width: 100px;
+  }
+
+  .log-action { color: var(--muted); flex: 1; }
+
+  .log-time {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  /* Overall risk banner */
+  #overall-banner {
+    border-radius: 10px;
+    padding: 12px 18px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid;
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    #district-grid { grid-template-columns: repeat(2, 1fr); }
+    .grid-2 { grid-template-columns: 1fr; }
+    #conditions-bar { grid-template-columns: repeat(3, 1fr); }
+  }
+
+  @media (max-width: 600px) {
+    #conditions-bar { grid-template-columns: repeat(2, 1fr); }
+    #district-grid { grid-template-columns: 1fr; }
+    main { padding: 16px; }
+    header { padding: 14px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>KIGALI FLOOD PREDICTION SYSTEM</h1>
+    <p>Real-time · Open-Meteo forecast · SCS-CN runoff model · Rwanda</p>
+  </div>
+  <div class="header-right">
+    <span id="last-updated">—</span>
+    <button id="refresh-btn" onclick="loadAll()">↻ Refresh</button>
+  </div>
+</header>
+
+<main>
+  <div id="loading">
+    <div class="spinner"></div>
+    <span>Fetching live data from Open-Meteo…</span>
+  </div>
+
+  <div id="dashboard" style="display:none">
+
+    <!-- Overall risk banner -->
+    <div id="overall-banner"></div>
+
+    <!-- Current conditions -->
+    <div class="section-title">Current conditions · Kigali</div>
+    <div id="conditions-bar">
+      <div class="cond-card">
+        <div class="cond-label">Precipitation</div>
+        <div class="cond-value" id="c-precip">—<span class="cond-unit">mm/hr</span></div>
+      </div>
+      <div class="cond-card">
+        <div class="cond-label">Temperature</div>
+        <div class="cond-value" id="c-temp">—<span class="cond-unit">°C</span></div>
+      </div>
+      <div class="cond-card">
+        <div class="cond-label">Humidity</div>
+        <div class="cond-value" id="c-humidity">—<span class="cond-unit">%</span></div>
+      </div>
+      <div class="cond-card">
+        <div class="cond-label">Wind speed</div>
+        <div class="cond-value" id="c-wind">—<span class="cond-unit">km/h</span></div>
+      </div>
+      <div class="cond-card">
+        <div class="cond-label">Status</div>
+        <div class="cond-value" id="c-status" style="font-size:14px;margin-top:4px;">—</div>
+      </div>
+    </div>
+
+    <!-- District risk -->
+    <div class="section-title">District flood risk</div>
+    <div id="district-grid"></div>
+
+    <!-- 48-hour forecast -->
+    <div class="section-title">48-hour precipitation forecast</div>
+    <div id="forecast-card">
+      <div class="forecast-chart-wrap">
+        <canvas id="forecastChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Two charts side by side -->
+    <div class="section-title">Analysis</div>
+    <div class="grid-2">
+      <div class="chart-card">
+        <h3>Hourly runoff probability (next 24 hr)</h3>
+        <div class="chart-wrap">
+          <canvas id="probChart"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>7-day daily precipitation totals</h3>
+        <div class="chart-wrap">
+          <canvas id="dailyChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action log -->
+    <div class="section-title">Recommended actions</div>
+    <div id="action-log">
+      <div id="action-rows"></div>
+    </div>
+
+  </div><!-- /dashboard -->
+</main>
+
+<script>
+// ─── District Configuration ───────────────────────────────────────────────
+const DISTRICTS = {
+  Nyarugenge: { cn: 85, area_km2: 97,  capacity: 45, label: "Urban core" },
+  Gasabo:     { cn: 72, area_km2: 429, capacity: 85, label: "Residential" },
+  Kicukiro:   { cn: 78, area_km2: 167, capacity: 62, label: "Mixed zone" },
+  Nyabugogo:  { cn: 90, area_km2: 15,  capacity: 20, label: "Flood hotspot" },
+};
+
+const RISK_META = {
+  normal:  { label: "Normal",  color: "#22c55e", bg: "rgba(34,197,94,0.08)",   border: "rgba(34,197,94,0.3)",   action: "No action required. Continue routine monitoring." },
+  watch:   { label: "Watch",   color: "#f59e0b", bg: "rgba(245,158,11,0.08)",  border: "rgba(245,158,11,0.3)",  action: "Monitor drainage channels. Alert field crews to standby." },
+  warning: { label: "Warning", color: "#ef4444", bg: "rgba(239,68,68,0.08)",   border: "rgba(239,68,68,0.3)",   action: "Activate drainage pumps. Pre-position emergency equipment. Notify REMA." },
+  flood:   { label: "Flood",   color: "#dc2626", bg: "rgba(220,38,38,0.12)",   border: "rgba(220,38,38,0.5)",   action: "⚠ Issue evacuation orders. Close flood-prone roads. Deploy emergency response teams." },
+};
+
+// ─── SCS-CN Runoff Model (JavaScript port) ───────────────────────────────
+function scsCnRunoff(P_mm, CN) {
+  if (P_mm <= 0) return 0;
+  const S  = (25400 / CN) - 254;
+  const Ia = 0.2 * S;
+  if (P_mm <= Ia) return 0;
+  return Math.pow(P_mm - Ia, 2) / (P_mm - Ia + S);
+}
+
+function rationalPeak(C, I_mm_hr, A_ha) {
+  return (C * I_mm_hr * A_ha) / 360;
+}
+
+function classifyRisk(Q, capacity) {
+  const ratio = Q / capacity;
+  if (ratio < 0.5)  return { level: "normal",  ratio };
+  if (ratio < 0.8)  return { level: "watch",   ratio };
+  if (ratio < 1.0)  return { level: "warning", ratio };
+  return               { level: "flood",   ratio };
+}
+
+function computeDistrictRisk(districtName, hourlyPrecip, windowHours = 6) {
+  const d = DISTRICTS[districtName];
+  const window = hourlyPrecip.slice(0, windowHours);
+  const P_mm   = window.reduce((a, b) => a + b, 0);
+  const I_peak = Math.max(...window, 0);
+
+  const Q_depth = scsCnRunoff(P_mm, d.cn);
+  const C       = P_mm > 0 ? Q_depth / P_mm : 0;
+  const A_ha    = d.area_km2 * 100;
+  const Q_peak  = rationalPeak(C, I_peak, A_ha);
+  const risk    = classifyRisk(Q_peak, d.capacity);
+
+  return { P_mm, I_peak, Q_depth, C, Q_peak, risk };
+}
+
+// ─── Open-Meteo API Calls ─────────────────────────────────────────────────
+const LAT = -1.9441, LON = 30.0619;
+
+async function fetchForecast() {
+  const url = `https://api.open-meteo.com/v1/forecast`
+    + `?latitude=${LAT}&longitude=${LON}`
+    + `&hourly=precipitation,precipitation_probability,rain`
+    + `&daily=precipitation_sum,precipitation_probability_max`
+    + `&current=precipitation,rain,temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code`
+    + `&forecast_days=7&timezone=Africa%2FKigali`;
+
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`Open-Meteo error: ${resp.status}`);
+  return resp.json();
+}
+
+// ─── Chart instances ──────────────────────────────────────────────────────
+let forecastChart = null, probChart = null, dailyChart = null;
+const CHART_OPTS = { responsive: true, maintainAspectRatio: false, animation: { duration: 600 } };
+
+function commonAxes(yLabel) {
+  return {
+    x: {
+      ticks: { color: '#475569', font: { family: "'IBM Plex Mono'", size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 },
+      grid:  { color: 'rgba(255,255,255,0.04)' },
+    },
+    y: {
+      ticks: { color: '#475569', font: { family: "'IBM Plex Mono'", size: 10 } },
+      grid:  { color: 'rgba(255,255,255,0.06)' },
+      title: { display: true, text: yLabel, color: '#475569', font: { size: 10 } },
+    }
+  };
+}
+
+// ─── Render Functions ─────────────────────────────────────────────────────
+function renderConditions(cur) {
+  const p = (cur.precipitation || 0).toFixed(1);
+  const isRain = parseFloat(p) > 0.1;
+  document.getElementById('c-precip').innerHTML    = `${p}<span class="cond-unit">mm/hr</span>`;
+  document.getElementById('c-temp').innerHTML      = `${(cur.temperature_2m||0).toFixed(1)}<span class="cond-unit">°C</span>`;
+  document.getElementById('c-humidity').innerHTML  = `${Math.round(cur.relative_humidity_2m||0)}<span class="cond-unit">%</span>`;
+  document.getElementById('c-wind').innerHTML      = `${(cur.wind_speed_10m||0).toFixed(1)}<span class="cond-unit">km/h</span>`;
+  document.getElementById('c-status').innerHTML    = isRain
+    ? `<span style="color:#38bdf8">● RAINING</span>`
+    : `<span style="color:#22c55e">○ DRY</span>`;
+}
+
+function renderDistricts(hourlyPrecip) {
+  const grid = document.getElementById('district-grid');
+  const actionRows = document.getElementById('action-rows');
+  grid.innerHTML = '';
+  actionRows.innerHTML = '';
+
+  let highestLevel = 'normal';
+  const order = ['normal','watch','warning','flood'];
+
+  const now = new Date().toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+
+  Object.entries(DISTRICTS).forEach(([name, cfg]) => {
+    const res  = computeDistrictRisk(name, hourlyPrecip, 6);
+    const meta = RISK_META[res.risk.level];
+    const pct  = Math.min(res.risk.ratio * 100, 100).toFixed(0);
+
+    if (order.indexOf(res.risk.level) > order.indexOf(highestLevel))
+      highestLevel = res.risk.level;
+
+    grid.innerHTML += `
+      <div class="district-card" style="--risk-color:${meta.color}">
+        <div class="district-name">${name}</div>
+        <div class="district-cn">${cfg.label} · CN ${cfg.cn}</div>
+        <div class="risk-badge">
+          <span class="risk-dot"></span>${meta.label.toUpperCase()}
+        </div>
+        <div class="district-stats">
+          Rainfall 6hr <span>${res.P_mm.toFixed(1)} mm</span><br>
+          Peak intensity <span>${res.I_peak.toFixed(1)} mm/hr</span><br>
+          Peak discharge <span>${res.Q_peak.toFixed(1)} m³/s</span><br>
+          Capacity <span>${cfg.capacity} m³/s</span>
+        </div>
+        <div class="cap-bar-bg">
+          <div class="cap-bar-fill" style="width:${pct}%"></div>
+        </div>
+        <div class="cap-label">
+          <span>0</span>
+          <span>${pct}% capacity</span>
+        </div>
+      </div>`;
+
+    actionRows.innerHTML += `
+      <div class="log-row">
+        <span class="log-dot" style="background:${meta.color}"></span>
+        <span class="log-district" style="color:${meta.color}">${name}</span>
+        <span class="log-action">${meta.action}</span>
+        <span class="log-time">${now}</span>
+      </div>`;
+  });
+
+  // Overall banner
+  const om = RISK_META[highestLevel];
+  document.getElementById('overall-banner').style.cssText =
+    `background:${om.bg}; border-color:${om.border}; color:${om.color}`;
+  document.getElementById('overall-banner').innerHTML =
+    `<span style="font-size:18px">●</span>
+     <strong>City-wide risk: ${om.label.toUpperCase()}</strong>
+     <span style="color:#94a3b8;font-size:12px;margin-left:8px">Highest risk across all 4 districts</span>`;
+}
+
+function renderForecastChart(times, precip, probs) {
+  const labels = times.slice(0, 48).map(t => {
+    const d = new Date(t);
+    return `${d.getDate()}/${d.getMonth()+1} ${String(d.getHours()).padStart(2,'0')}:00`;
+  });
+
+  const ctx = document.getElementById('forecastChart').getContext('2d');
+  if (forecastChart) forecastChart.destroy();
+
+  forecastChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          type: 'bar',
+          label: 'Precipitation (mm/hr)',
+          data: precip.slice(0, 48),
+          backgroundColor: probs.slice(0, 48).map(p =>
+            p > 70 ? 'rgba(239,68,68,0.75)' : p > 40 ? 'rgba(245,158,11,0.65)' : 'rgba(56,189,248,0.55)'
+          ),
+          borderWidth: 0,
+          borderRadius: 3,
+          yAxisID: 'y',
+        },
+        {
+          type: 'line',
+          label: 'Probability (%)',
+          data: probs.slice(0, 48),
+          borderColor: 'rgba(148,163,184,0.5)',
+          backgroundColor: 'transparent',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          tension: 0.4,
+          yAxisID: 'y1',
+        }
+      ]
+    },
+    options: {
+      ...CHART_OPTS,
+      scales: {
+        x: commonAxes('').x,
+        y:  {
+          ticks: { color: '#475569', font: { family: "'IBM Plex Mono'", size: 10 } },
+          grid:  { color: 'rgba(255,255,255,0.06)' },
+          title: { display: true, text: 'mm/hr', color: '#475569', font: { size: 10 } },
+        },
+        y1: {
+          position: 'right',
+          min: 0, max: 100,
+          ticks: { color: '#475569', font: { family: "'IBM Plex Mono'", size: 10 } },
+          grid:  { display: false },
+          title: { display: true, text: '%', color: '#475569', font: { size: 10 } },
+        }
+      },
+      plugins: {
+        legend: { labels: { color: '#94a3b8', font: { family: "'IBM Plex Mono'", size: 11 } } },
+        tooltip: { mode: 'index', intersect: false }
+      }
+    }
+  });
+}
+
+function renderProbChart(times, precip) {
+  // Compute hourly runoff risk for Nyabugogo (most vulnerable)
+  const labels = times.slice(0, 24).map(t => {
+    const d = new Date(t);
+    return `${String(d.getHours()).padStart(2,'0')}:00`;
+  });
+
+  // Sliding 6hr window runoff
+  const risks = precip.slice(0, 24).map((_, i) => {
+    const window = precip.slice(i, i + 6);
+    const P = window.reduce((a, b) => a + b, 0);
+    const Q = scsCnRunoff(P, 90);  // Nyabugogo CN
+    return Math.min((Q / 20) * 100, 100);  // % of capacity
+  });
+
+  const ctx = document.getElementById('probChart').getContext('2d');
+  if (probChart) probChart.destroy();
+
+  probChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Runoff risk % capacity (Nyabugogo)',
+        data: risks,
+        borderColor: '#f59e0b',
+        backgroundColor: 'rgba(245,158,11,0.1)',
+        fill: true,
+        tension: 0.4,
+        pointRadius: 2,
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      ...CHART_OPTS,
+      scales: commonAxes('% capacity'),
+      plugins: {
+        legend: { labels: { color: '#94a3b8', font: { family: "'IBM Plex Mono'", size: 11 } } }
+      }
+    }
+  });
+}
+
+function renderDailyChart(times, totals) {
+  const labels = times.map(t => {
+    const d = new Date(t + 'T00:00');
+    return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' });
+  });
+
+  const ctx = document.getElementById('dailyChart').getContext('2d');
+  if (dailyChart) dailyChart.destroy();
+
+  dailyChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Daily precipitation (mm)',
+        data: totals,
+        backgroundColor: totals.map(v =>
+          v > 30 ? 'rgba(239,68,68,0.7)' : v > 15 ? 'rgba(245,158,11,0.65)' : 'rgba(56,189,248,0.55)'
+        ),
+        borderWidth: 0,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      ...CHART_OPTS,
+      scales: commonAxes('mm/day'),
+      plugins: {
+        legend: { labels: { color: '#94a3b8', font: { family: "'IBM Plex Mono'", size: 11 } } }
+      }
+    }
+  });
+}
+
+// ─── Main Load ────────────────────────────────────────────────────────────
+async function loadAll() {
+  document.getElementById('loading').style.display = 'flex';
+  document.getElementById('dashboard').style.display = 'none';
+
+  try {
+    const data = await fetchForecast();
+
+    const cur    = data.current || {};
+    const hourly = data.hourly  || {};
+    const daily  = data.daily   || {};
+
+    renderConditions(cur);
+    renderDistricts(hourly.precipitation || []);
+    renderForecastChart(
+      hourly.time         || [],
+      hourly.precipitation || [],
+      hourly.precipitation_probability || [],
+    );
+    renderProbChart(hourly.time || [], hourly.precipitation || []);
+    renderDailyChart(daily.time || [], daily.precipitation_sum || []);
+
+    const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    document.getElementById('last-updated').textContent = `Updated ${now}`;
+
+    document.getElementById('loading').style.display   = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+
+  } catch (err) {
+    document.getElementById('loading').innerHTML =
+      `<div style="color:#ef4444;font-family:var(--mono);font-size:13px">
+         Error: ${err.message}<br>
+         <small style="color:#64748b;margin-top:8px;display:block">
+           Check network connection and try again.
+         </small>
+       </div>`;
+  }
+}
+
+// Auto-refresh every 15 minutes
+loadAll();
+setInterval(loadAll, 15 * 60 * 1000);
+</script>
+</body>
+</html>
