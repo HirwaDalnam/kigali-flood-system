@@ -55,6 +55,25 @@ app.add_middleware(
 
 # ─── Endpoints ───────────────────────────────────────────────────────────────
 
+@app.get("/")
+async def root():
+    """Root endpoint — confirms the API is live."""
+    return {
+        "api": "Kigali Flood Prediction System",
+        "status": "online",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "endpoints": [
+            "/health",
+            "/rainfall/current",
+            "/rainfall/forecast",
+            "/flood-risk",
+            "/flood-risk/{district_name}",
+            "/history/antecedent",
+        ]
+    }
+
+
 @app.get("/health")
 async def health():
     """Verify the API is running and all data sources are reachable."""
